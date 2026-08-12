@@ -1,0 +1,32 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: 22
+    commands:
+      - echo "Installing dependencies..."
+      - npm install
+      - echo "Dependencies installed successfully!"
+  pre_build:
+    commands:
+      - echo "Pre-build steps..."
+  build:
+    commands:
+      - echo "Building the application..."
+      - npm run build
+      - echo "Build completed successfully!"
+  post_build:
+    commands:
+      - echo "Post-build steps..."
+
+artifacts:
+  files:
+    - "**/*"
+  base-directory: "build"
+  name: "board-meet-app"
+  discard-paths: no
+
+cache:
+  paths:
+    - "node_modules/**/*"
