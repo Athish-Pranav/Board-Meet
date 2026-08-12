@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm audit *)",
+      "Bash(powershell -c \"Select-String -Path package.json -Pattern zoom\")",
+      "Bash(powershell -c \"Select-String -Path 'src\\\\app\\\\\\(app\\)\\\\meetings\\\\MeetingForm.tsx' -Pattern 'meetingLink|mode'\")"
+    ]
+  }
+}

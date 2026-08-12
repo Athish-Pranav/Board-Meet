@@ -1,0 +1,58 @@
+{
+  "name": "board-meeting-management",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Board Meeting Management System — single-tenant governance app (Companies Act 2013 + SS-1)",
+  "scripts": {
+    "dev": "next dev -p 3002",
+    "dev:https": "next dev --experimental-https --experimental-https-key ./cert/server.key --experimental-https-cert ./cert/server.cert -p 3002",
+    "build": "prisma generate && next build",
+    "start": "next start -p 3002",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "prisma:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate dev",
+    "db:seed": "tsx prisma/seed.ts",
+    "dev:sqlite": "node scripts/make-sqlite-schema.mjs && prisma generate --schema prisma/schema.sqlite.prisma && prisma db push --schema prisma/schema.sqlite.prisma --skip-generate && prisma db seed",
+    "postinstall": "prisma generate && node scripts/copy-pdf-worker.mjs"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.22.0",
+    "@types/nodemailer": "^8.0.1",
+    "@zoom/meetingsdk": "^6.2.0",
+    "bcryptjs": "^2.4.3",
+    "clsx": "^2.1.1",
+    "date-fns": "^3.6.0",
+    "jose": "^5.9.6",
+    "jszip": "^3.10.1",
+    "lodash": "^4.18.1",
+    "mammoth": "^1.12.0",
+    "next": "14.2.35",
+    "nodemailer": "^9.0.1",
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^6.2.108",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "react-redux": "8.1.2",
+    "redux": "4.2.1",
+    "redux-thunk": "2.4.2",
+    "xlsx": "^0.18.5",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^20.16.5",
+    "@types/react": "^18.3.5",
+    "@types/react-dom": "^18.3.0",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.47",
+    "prisma": "^5.22.0",
+    "tailwindcss": "^3.4.13",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.2"
+  }
+}

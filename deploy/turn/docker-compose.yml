@@ -1,0 +1,24 @@
+# Self-hosted TURN relay for the BoardMeet video room.
+# Run on a Linux host that all meeting participants can reach.
+#
+#   1. Edit turnserver.conf (secret + external-ip).
+#   2. docker compose up -d
+#   3. Set these in the app's .env, then restart the app:
+#        TURN_URL=turn:<PUBLIC_OR_LAN_IP>:3478
+#        TURN_USERNAME=boardmeet
+#        TURN_CREDENTIAL=<STRONG_SHARED_SECRET>
+#
+# host networking is used because coturn needs a wide UDP relay-port range.
+# (Linux only. On other hosts, replace with an explicit port mapping for
+#  3478/tcp, 3478/udp and 49160-49200/udp.)
+
+services:
+  coturn:
+    image: coturn/coturn:latest
+    container_name: boardmeet-turn
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ./turnserver.conf:/etc/coturn/turnserver.conf:ro
+      # - ./certs:/etc/coturn/certs:ro   # uncomment if you enable TLS
+    command: ["-c", "/etc/coturn/turnserver.conf"]

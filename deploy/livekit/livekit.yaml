@@ -1,0 +1,28 @@
+# LiveKit SFU server config for the BoardMeet video room.
+# Replace <API_KEY> / <API_SECRET> and <PUBLIC_OR_LAN_IP> before starting.
+
+port: 7880 # signaling / HTTP (the app connects here)
+
+rtc:
+  tcp_port: 7881 # media over TCP fallback (helps on restrictive networks)
+  port_range_start: 50000 # UDP media range — OPEN THESE ON THE FIREWALL
+  port_range_end: 50200
+  use_external_ip: true # auto-detect public IP; set below if that fails
+
+  # If the server is behind NAT and auto-detect doesn't work, hardcode the address
+  # participants use to reach it (public IP for internet, LAN IP for VPN-only):
+  # node_ip: <PUBLIC_OR_LAN_IP>
+
+# API key/secret used to sign access tokens. Must match LIVEKIT_API_KEY /
+# LIVEKIT_API_SECRET in the app's .env. Generate a strong secret.
+keys:
+  <API_KEY>: <API_SECRET>
+
+# LiveKit's built-in TURN relay — carries media when a direct path is blocked,
+# so you do NOT need a separate coturn server.
+turn:
+  enabled: true
+  udp_port: 3478
+  # For internet use, add TLS so it works on HTTPS-only networks:
+  # tls_port: 5349
+  # domain: turn.your-domain.com

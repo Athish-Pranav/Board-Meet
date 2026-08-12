@@ -1,0 +1,22 @@
+# Self-hosted LiveKit SFU for the BoardMeet video room.
+# Run on a Linux host that all meeting participants can reach.
+#
+#   1. Edit livekit.yaml  (API key/secret + external IP if needed).
+#   2. docker compose up -d
+#   3. Set these in the app's .env, then restart the app:
+#        LIVEKIT_URL=ws://<PUBLIC_OR_LAN_IP>:7880      (wss:// if you add TLS)
+#        LIVEKIT_API_KEY=<API_KEY>
+#        LIVEKIT_API_SECRET=<API_SECRET>
+#
+# host networking is used because the SFU needs a wide UDP media-port range.
+# (Linux only. Otherwise map 7880/tcp, 7881/tcp, 3478/udp and 50000-50200/udp.)
+
+services:
+  livekit:
+    image: livekit/livekit-server:latest
+    container_name: boardmeet-livekit
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml:ro
+    command: ["--config", "/etc/livekit.yaml"]

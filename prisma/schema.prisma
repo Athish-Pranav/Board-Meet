@@ -1,0 +1,642 @@
+// Board Meeting Management System — data model
+// Target: Microsoft SQL Server (Prisma `sqlserver` provider).
+//
+// SQL Server notes baked into this schema:
+//  - Int identity PKs (avoids NVARCHAR(900-byte) key-length limits of string ids).
+//  - No DB enums (unsupported on SQL Server); enums are validated string constants
+//    in src/lib/enums.ts and ported cleanly to Postgres if you migrate later.
+//  - All relations use onDelete/onUpdate: NoAction to avoid SQL Server's
+//    "multiple cascade paths" migration error. We soft-delete legal records anyway.
+//  - Long text uses @db.NVarChar(Max); unique strings are length-capped (< 900 bytes).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlserver"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Identity & access
+// ---------------------------------------------------------------------------
+
+model User {
+  id           Int       @id @default(autoincrement())
+  name         String
+  email        String    @unique @db.NVarChar(320)
+  passwordHash String?   @db.NVarChar(Max)
+  role         String    @default("BoardMember") // Admin | Chairman | CompanySecretary | BoardMember | Management
+  designation  String?
+  status       String    @default("Active") // Active | Suspended | Inactive
+  isDirector   Boolean   @default(false) // counts toward quorum (Companies Act s.174)
+  authProvider String    @default("local") // local | azure-ad
+  dashboardSeenAt DateTime? // marks the cut-off for the "What's New" feed
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  sessions             Session[]
+  createdMeetings      Meeting[]             @relation("MeetingCreatedBy")
+  approvedMeetings     Meeting[]             @relation("MeetingApprovedBy")
+  presentingItems      AgendaItem[]          @relation("AgendaPresenter")
+  proposedItems        AgendaItem[]          @relation("AgendaProposedBy")
+  uploadedDocuments    Document[]
+  publishedBoardPacks  BoardPack[]
+  restrictedSections   BoardPackSection[]
+  attendances          Attendance[]
+  signedMinutes        Minutes[]
+  minutesComments      MinutesComment[]
+  minutesAddenda       MinutesAddendum[]
+  actionItemsAssigned  ActionItem[]          @relation("ActionAssignee")
+  actionItemsCreated   ActionItem[]          @relation("ActionCreatedBy")
+  votes                Vote[]
+  conflicts            ConflictDeclaration[]
+  agendaNotes          AgendaNote[]
+  documentDrawings     DocumentDrawing[]
+  committeeMemberships CommitteeMember[]
+  notifications        Notification[]
+  auditLogs            AuditLog[]
+  annotations          Annotation[]
+  announcements        Announcement[]
+  chatMemberships      ConversationMember[]
+  chatMessages         ChatMessage[]
+}
+
+model Session {
+  id        Int      @id @default(autoincrement())
+  token     String   @unique @db.NVarChar(200)
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// Committees (committee meetings are Meetings with type=Committee + committeeId)
+// ---------------------------------------------------------------------------
+
+model Committee {
+  id          Int               @id @default(autoincrement())
+  name        String
+  type        String // Audit | Risk | Nomination | CSR | Stakeholders | Other
+  description String?           @db.NVarChar(Max)
+  createdAt   DateTime          @default(now())
+  deletedAt   DateTime?
+  members     CommitteeMember[]
+  meetings    Meeting[]
+}
+
+model CommitteeMember {
+  id          Int       @id @default(autoincrement())
+  committeeId Int
+  committee   Committee @relation(fields: [committeeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  userId      Int
+  user        User      @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  role        String    @default("Member") // Chair | Member
+  createdAt   DateTime  @default(now())
+
+  @@unique([committeeId, userId])
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// Meetings
+// ---------------------------------------------------------------------------
+
+model Meeting {
+  id            Int        @id @default(autoincrement())
+  type          String // Board | Committee | General
+  committeeId   Int?
+  committee     Committee? @relation(fields: [committeeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  title         String
+  description   String?    @db.NVarChar(Max)
+  scheduledAt   DateTime
+  venue         String?
+  mode          String     @default("Physical") // Physical | Video | Hybrid
+  meetingLink   String?    @db.NVarChar(Max)
+  zoomMeetingId String?    @db.NVarChar(64) // Zoom meeting id, when created via the REST API (see src/lib/zoom.ts)
+  zoomPasscode  String?    @db.NVarChar(32) // Plain meeting passcode — the embedded Meeting SDK needs it to join (the ?pwd= in a join URL is not it)
+  status        String     @default("Scheduled") // Draft | Scheduled | InSession | Concluded | Cancelled
+
+  // Notice (s.173(3))
+  noticeSentAt        DateTime?
+  shortNoticeConsent  Boolean   @default(false)
+  shortNoticeNote     String?   @db.NVarChar(Max)
+
+  // Quorum (s.174)
+  quorumRequired Int      @default(0)
+  quorumMet      Boolean  @default(false)
+
+  // Chairman approval (emailed for sign-off when the meeting is created)
+  approvalStatus String     @default("Pending") // Pending | Approved | Rejected
+  approvalNote   String?    @db.NVarChar(Max)
+  approvedAt     DateTime?
+  approvedById   Int?
+  approvedBy     User?      @relation("MeetingApprovedBy", fields: [approvedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  startedAt   DateTime?
+  endedAt     DateTime?
+  recordingKey String? @db.NVarChar(Max)
+  agendaStatus   String    @default("Draft") // Draft | UnderReview | Approved | RevisionRequested
+  agendaFeedback String?   @db.NVarChar(Max)
+  createdById Int
+  createdBy   User      @relation("MeetingCreatedBy", fields: [createdById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  agendaItems AgendaItem[]
+  documents   Document[]
+  boardPacks  BoardPack[]
+  attendance  Attendance[]
+  minutes     Minutes?
+  actionItems ActionItem[]
+  conflicts   ConflictDeclaration[]
+
+  @@index([scheduledAt])
+  @@index([type])
+  @@index([committeeId])
+  @@index([zoomMeetingId])
+}
+
+model AgendaItem {
+  id             Int       @id @default(autoincrement())
+  meetingId      Int
+  meeting        Meeting   @relation(fields: [meetingId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  // Sub-agenda: a one-level tree. Top-level items have parentId = null; sub-items
+  // point at their parent. `sequence` orders items within their own level.
+  parentId       Int?
+  parent         AgendaItem?  @relation("AgendaSubItems", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  children       AgendaItem[] @relation("AgendaSubItems")
+  sequence       Int
+  title          String
+  description    String?   @db.NVarChar(Max)
+  classification String    @default("ForDiscussion") // ForApproval | ForInformation | ForDiscussion
+  presenterId    Int?
+  presenter      User?     @relation("AgendaPresenter", fields: [presenterId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  proposedById   Int?
+  proposedBy     User?     @relation("AgendaProposedBy", fields: [proposedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  isSupplementary Boolean  @default(false) // added after agenda lock
+  discussionNote String?   @db.NVarChar(Max) // live notes captured by CS
+  lockedAt       DateTime?
+
+  // Voting / approval (only meaningful for classification = "ForApproval").
+  // A "For Approval" agenda item IS the resolution put to the board.
+  votingStatus   String    @default("None") // None | Circulated | Passed | Failed | Withdrawn
+  majorityRule   String    @default("Simple") // Simple | Special (>=75%)
+  circulatedAt   DateTime?
+  votingClosedAt DateTime?
+
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  documents       Document[]
+  boardPackSections BoardPackSection[]
+  actionItems     ActionItem[]
+  conflicts       ConflictDeclaration[]
+  votes           Vote[]
+  notes           AgendaNote[]
+
+  @@index([meetingId])
+  @@index([parentId])
+}
+
+// Private, per-user notes on an agenda item — personal note-taking during a
+// meeting, never shared with other attendees. One note per (item, user); a
+// second save overwrites rather than appending, matching a simple notebook
+// rather than a comment thread.
+model AgendaNote {
+  id           Int      @id @default(autoincrement())
+  agendaItemId Int
+  agendaItem   AgendaItem @relation(fields: [agendaItemId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  userId       Int
+  user         User     @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  content      String   @db.NVarChar(Max)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([agendaItemId, userId])
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// Documents, folders, versioning
+// ---------------------------------------------------------------------------
+
+model Folder {
+  id        Int        @id @default(autoincrement())
+  name      String
+  category  String     @default("General") // BoardMinutes | Resolutions | Policies | StatutoryRegisters | CommitteePapers | General
+  parentId  Int?
+  parent    Folder?    @relation("FolderTree", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  children  Folder[]   @relation("FolderTree")
+  createdAt DateTime   @default(now())
+  documents Document[]
+
+  @@index([parentId])
+}
+
+model Document {
+  id             Int         @id @default(autoincrement())
+  title          String
+  agendaItemId   Int?
+  agendaItem     AgendaItem? @relation(fields: [agendaItemId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  folderId       Int?
+  folder         Folder?     @relation(fields: [folderId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  meetingId      Int?
+  meeting        Meeting?    @relation(fields: [meetingId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  minutesId      Int?
+  minutes        Minutes?    @relation(fields: [minutesId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  version        Int         @default(1)
+  supersedesId   Int? // previous version of this document (never overwritten)
+  supersedes     Document?   @relation("DocVersion", fields: [supersedesId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  supersededBy   Document[]  @relation("DocVersion")
+  classification String      @default("Internal") // Confidential | Restricted | Internal
+  storageKey     String      @db.NVarChar(Max)
+  fileName       String
+  mimeType       String      @default("application/octet-stream")
+  sizeBytes      Int         @default(0)
+  uploadedById   Int
+  uploadedBy     User        @relation(fields: [uploadedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  uploadedAt     DateTime    @default(now())
+  archivedAt     DateTime? // retention engine archive flag
+  deletedAt      DateTime?
+
+  boardPackSections BoardPackSection[]
+  annotations       Annotation[]
+  announcements     Announcement[]
+  drawings          DocumentDrawing[]
+
+  @@index([agendaItemId])
+  @@index([folderId])
+  @@index([meetingId])
+  @@index([minutesId])
+}
+
+// Private, per-user freehand drawing/highlighting on a document — distinct
+// from Annotation (quote + text note): this is the canvas-stroke markup used
+// inside the meeting room / call page's document viewer. One row per
+// (document, user), overwritten on each save — a personal markup layer, never
+// shared with other attendees.
+model DocumentDrawing {
+  id         Int      @id @default(autoincrement())
+  documentId Int
+  document   Document @relation(fields: [documentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  userId     Int
+  user       User     @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  strokesJson String  @db.NVarChar(Max)
+  updatedAt  DateTime @updatedAt
+
+  @@unique([documentId, userId])
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// Board pack
+// ---------------------------------------------------------------------------
+
+model BoardPack {
+  id            Int                @id @default(autoincrement())
+  meetingId     Int
+  meeting       Meeting            @relation(fields: [meetingId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  version       Int                @default(1)
+  status        String             @default("Draft") // Draft | Published
+  compiledPdfKey String?           @db.NVarChar(Max)
+  publishedAt   DateTime?
+  publishedById Int?
+  publishedBy   User?              @relation(fields: [publishedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdAt     DateTime           @default(now())
+  sections      BoardPackSection[]
+
+  @@index([meetingId])
+}
+
+model BoardPackSection {
+  id               Int         @id @default(autoincrement())
+  boardPackId      Int
+  boardPack        BoardPack   @relation(fields: [boardPackId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  agendaItemId     Int?
+  agendaItem       AgendaItem? @relation(fields: [agendaItemId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  documentId       Int?
+  document         Document?   @relation(fields: [documentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  title            String
+  sequence         Int         @default(0)
+  // If set, only this user (e.g. a presenter) may view this section.
+  restrictedToUserId Int?
+  restrictedToUser   User?     @relation(fields: [restrictedToUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([boardPackId])
+}
+
+// ---------------------------------------------------------------------------
+// Meeting execution
+// ---------------------------------------------------------------------------
+
+model Attendance {
+  id         Int      @id @default(autoincrement())
+  meetingId  Int
+  meeting    Meeting  @relation(fields: [meetingId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  userId     Int
+  user       User     @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  status     String   @default("Invited") // Invited | Present | PresentViaVideo | LeaveOfAbsence | Absent
+  isPresenter Boolean @default(false)
+  joinedAt   DateTime?
+  updatedAt  DateTime @updatedAt
+
+  @@unique([meetingId, userId])
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// Minutes (legal record — never hard-deleted)
+// ---------------------------------------------------------------------------
+
+model Minutes {
+  id          Int       @id @default(autoincrement())
+  meetingId   Int       @unique
+  meeting     Meeting   @relation(fields: [meetingId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  status      String    @default("Draft") // Draft | Circulated | Approved | Published
+  content     String    @db.NVarChar(Max)
+  circulatedAt DateTime?
+  approvedAt  DateTime?
+  finalizedAt DateTime?
+  signedById  Int?
+  signedBy    User?     @relation(fields: [signedById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  comments  MinutesComment[]
+  addenda   MinutesAddendum[]
+  actionItems ActionItem[]
+  documents Document[]
+}
+
+model MinutesComment {
+  id        Int      @id @default(autoincrement())
+  minutesId Int
+  minutes   Minutes  @relation(fields: [minutesId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  comment   String   @db.NVarChar(Max)
+  createdAt DateTime @default(now())
+
+  @@index([minutesId])
+}
+
+model MinutesAddendum {
+  id          Int      @id @default(autoincrement())
+  minutesId   Int
+  minutes     Minutes  @relation(fields: [minutesId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  content     String   @db.NVarChar(Max)
+  createdById Int
+  createdBy   User     @relation(fields: [createdById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdAt   DateTime @default(now())
+
+  @@index([minutesId])
+}
+
+// ---------------------------------------------------------------------------
+// Action items
+// ---------------------------------------------------------------------------
+
+model ActionItem {
+  id                Int         @id @default(autoincrement())
+  title             String
+  description       String?     @db.NVarChar(Max)
+  sourceMinutesId   Int?
+  sourceMinutes     Minutes?    @relation(fields: [sourceMinutesId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  sourceAgendaItemId Int?
+  sourceAgendaItem  AgendaItem? @relation(fields: [sourceAgendaItemId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  meetingId         Int?
+  meeting           Meeting?    @relation(fields: [meetingId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  assigneeId        Int
+  assignee          User        @relation("ActionAssignee", fields: [assigneeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  dueDate           DateTime
+  status            String      @default("Open") // Open | InProgress | Done | Overdue
+  completedAt       DateTime?
+  escalatedAt       DateTime?
+  reminderSentAt    DateTime?
+  createdById       Int
+  createdBy         User        @relation("ActionCreatedBy", fields: [createdById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  deletedAt         DateTime?
+
+  @@index([assigneeId])
+  @@index([status])
+  @@index([dueDate])
+}
+
+// ---------------------------------------------------------------------------
+// Voting (resolutions are "For Approval" agenda items — see AgendaItem)
+// ---------------------------------------------------------------------------
+
+model Vote {
+  id             Int        @id @default(autoincrement())
+  agendaItemId   Int
+  agendaItem     AgendaItem @relation(fields: [agendaItemId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  userId         Int
+  user           User       @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  choice         String // For | Against | Abstain
+  previousChoice String? // set when a director changes their vote before close
+  votedAt        DateTime   @default(now())
+
+  @@unique([agendaItemId, userId])
+  @@index([agendaItemId])
+}
+
+// ---------------------------------------------------------------------------
+// Conflict / declaration of interest register
+// ---------------------------------------------------------------------------
+
+model ConflictDeclaration {
+  id           Int         @id @default(autoincrement())
+  userId       Int
+  user         User        @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  agendaItemId Int?
+  agendaItem   AgendaItem? @relation(fields: [agendaItemId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  meetingId    Int?
+  meeting      Meeting?    @relation(fields: [meetingId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  nature       String      @db.NVarChar(Max)
+  recused      Boolean     @default(false) // director recused from discussion/vote
+  recordedAt   DateTime    @default(now())
+  deletedAt    DateTime?
+
+  @@index([userId])
+  @@index([agendaItemId])
+}
+
+// ---------------------------------------------------------------------------
+// Notifications (pluggable email / in-app)
+// ---------------------------------------------------------------------------
+
+model Notification {
+  id                Int       @id @default(autoincrement())
+  userId            Int
+  user              User      @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  type              String // MeetingInvite | BoardPackPublished | ActionDue | MinutesCirculated | ResolutionCirculated | Escalation
+  channel           String    @default("InApp") // InApp | Email
+  subject           String
+  body              String    @db.NVarChar(Max)
+  status            String    @default("Pending") // Pending | Sent | Read | Failed
+  relatedEntityType String?
+  relatedEntityId   Int?
+  createdAt         DateTime  @default(now())
+  sentAt            DateTime?
+  readAt            DateTime?
+
+  @@index([userId])
+  @@index([status])
+}
+
+// ---------------------------------------------------------------------------
+// Document retention engine
+// ---------------------------------------------------------------------------
+
+model RetentionPolicy {
+  id          Int      @id @default(autoincrement())
+  category    String   @unique // matches Folder.category
+  retainYears Int? // null when permanent
+  permanent   Boolean  @default(false)
+  action      String   @default("Flag") // Flag | Archive (never Delete for minutes)
+  createdAt   DateTime @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// PDF annotation / highlighter overlay
+// ---------------------------------------------------------------------------
+
+model Annotation {
+  id         Int      @id @default(autoincrement())
+  documentId Int
+  document   Document @relation(fields: [documentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  userId     Int
+  user       User     @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  page       Int      @default(1)
+  color      String   @default("#ffeb3b")
+  rectsJson  String   @db.NVarChar(Max) // serialized highlight rectangles
+  note       String?  @db.NVarChar(Max)
+  createdAt  DateTime @default(now())
+
+  @@index([documentId])
+}
+
+// ---------------------------------------------------------------------------
+// Audit log (every write: who/what/when/before/after)
+// ---------------------------------------------------------------------------
+
+model AuditLog {
+  id         Int      @id @default(autoincrement())
+  actorId    Int?
+  actor      User?    @relation(fields: [actorId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  action     String // create | update | delete | publish | approve | vote | login | ...
+  entityType String
+  entityId   Int?
+  meetingId  Int? // denormalized so CS can scope audit to their meetings
+  summary    String?  @db.NVarChar(Max)
+  before     String?  @db.NVarChar(Max)
+  after      String?  @db.NVarChar(Max)
+  ip         String?
+  at         DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([meetingId])
+  @@index([at])
+}
+
+// ---------------------------------------------------------------------------
+// News / shared documents announcements (surfaced on the dashboard)
+// ---------------------------------------------------------------------------
+
+model Announcement {
+  id          Int       @id @default(autoincrement())
+  title       String
+  body        String    @db.NVarChar(Max)
+  category    String    @default("News") // News | SharedDoc
+  pinned      Boolean   @default(false)
+  linkUrl     String?   @db.NVarChar(Max)
+  documentId  Int?
+  document    Document? @relation(fields: [documentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdById Int
+  createdBy   User      @relation(fields: [createdById], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  createdAt   DateTime  @default(now())
+  deletedAt   DateTime?
+
+  @@index([category])
+  @@index([createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// File storage in the database (VARBINARY(MAX)). Document.storageKey = "db:<id>".
+// ---------------------------------------------------------------------------
+
+model FileObject {
+  id        Int      @id @default(autoincrement())
+  data      Bytes // VARBINARY(MAX) on SQL Server
+  sizeBytes Int      @default(0)
+  mimeType  String?
+  fileName  String?
+  createdAt DateTime @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// In-app messenger (direct chats + admin groups, with file sharing)
+// ---------------------------------------------------------------------------
+
+model Conversation {
+  id          Int                  @id @default(autoincrement())
+  type        String // Direct | Group
+  name        String? // group name (null for direct)
+  createdById Int
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt // bumped on each new message (sort key)
+  members     ConversationMember[]
+  messages    ChatMessage[]
+
+  @@index([updatedAt])
+}
+
+model ConversationMember {
+  id             Int          @id @default(autoincrement())
+  conversationId Int
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  userId         Int
+  user           User         @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  role           String       @default("member") // member | admin
+  lastReadAt     DateTime?
+  createdAt      DateTime     @default(now())
+
+  @@unique([conversationId, userId])
+  @@index([userId])
+}
+
+model ChatMessage {
+  id             Int          @id @default(autoincrement())
+  conversationId Int
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  senderId       Int
+  sender         User         @relation(fields: [senderId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  body           String?      @db.NVarChar(Max)
+  attachmentKey  String?      @db.NVarChar(Max) // storage key (db:<id>)
+  attachmentName String?
+  attachmentType String?
+  attachmentSize Int?
+  createdAt      DateTime     @default(now())
+
+  @@index([conversationId])
+}
+
+// ---------------------------------------------------------------------------
+// App settings (company profile, compliance toggles)
+// ---------------------------------------------------------------------------
+
+model AppSetting {
+  id    Int    @id @default(autoincrement())
+  key   String @unique @db.NVarChar(200)
+  value String @db.NVarChar(Max)
+}

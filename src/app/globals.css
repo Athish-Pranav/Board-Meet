@@ -1,0 +1,210 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+@layer base {
+  body {
+    @apply bg-cream-100 text-slate-600 antialiased;
+    /* Subtle dimensional ground: a soft cool wash top-left fading into the warm
+       ivory base, so floating cards have something to sit above. */
+    background-image:
+      radial-gradient(1200px 600px at 0% -5%, rgba(31, 117, 124, 0.08), transparent 60%),
+      radial-gradient(1000px 500px at 100% 0%, rgba(203, 154, 54, 0.06), transparent 55%);
+    background-attachment: fixed;
+    font-feature-settings: "cv02", "cv03", "cv04", "ss01";
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  ::selection {
+    @apply bg-gold-200/70 text-brand-900;
+  }
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #d9c79b transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  *::-webkit-scrollbar-thumb {
+    @apply rounded-full bg-cream-300;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    @apply bg-gold-300;
+  }
+  h1 {
+    @apply font-serif font-semibold tracking-tight text-brand-900;
+    text-wrap: balance;
+  }
+  h2, h3 {
+    @apply font-sans font-semibold tracking-tight text-brand-900;
+    text-wrap: balance;
+  }
+  /* Respect users who prefer reduced motion (a11y). */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  /* Dimensional card: solid surface with a faint top-down gradient (convex),
+     hairline top highlight + layered elevation shadow for real depth. */
+  .card {
+    @apply rounded-2xl border border-brand-100/70 bg-gradient-to-b from-white to-cream-50 shadow-e2 transition-all duration-300 ease-premium;
+  }
+  /* Heavier frosted glass for feature/hero surfaces */
+  .glass-card {
+    @apply rounded-2xl border border-white/70 bg-white/60 shadow-glass backdrop-blur-2xl backdrop-saturate-150;
+  }
+  /* Iridescent gradient border (liquid-glass edge) */
+  .iris-border {
+    border: 1px solid transparent;
+    background:
+      linear-gradient(#ffffff, #ffffff) padding-box,
+      linear-gradient(135deg, #5eead4 0%, #67c7f7 30%, #a78bfa 62%, #e0c577 100%) border-box;
+  }
+  .card-hover {
+    @apply hover:-translate-y-1 hover:border-brand-200 hover:shadow-e3;
+  }
+  /* Marquee surface: hairline of light on top + warmer depth. */
+  .card-premium {
+    @apply relative rounded-2xl border border-cream-300/70 bg-gradient-to-b from-white to-cream-100 shadow-e3 transition-all duration-300 ease-premium;
+  }
+  .card-premium::before {
+    content: "";
+    @apply pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white to-transparent;
+  }
+
+  /* Tactile buttons: top→bottom gradient + inner top highlight + drop shadow read
+     as a raised, pressable surface; they sink slightly (translate) on press. */
+  .btn {
+    @apply inline-flex select-none items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-all duration-200 ease-premium focus:outline-none focus-visible:ring-2 focus-visible:ring-gold-400 focus-visible:ring-offset-2 focus-visible:ring-offset-cream-100 active:translate-y-px active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:translate-y-0 disabled:active:scale-100;
+  }
+  .btn-primary {
+    @apply btn bg-gradient-to-b from-brand-600 to-brand-800 text-cream-50 shadow-btn hover:-translate-y-px hover:from-brand-500 hover:to-brand-700 hover:shadow-btn-hover active:shadow-inset;
+  }
+  .btn-gold {
+    @apply btn bg-gradient-to-b from-gold-300 to-gold-500 text-brand-900 shadow-btn hover:-translate-y-px hover:from-gold-400 hover:to-gold-600 hover:text-cream-50 hover:shadow-gold active:shadow-inset;
+  }
+  .btn-secondary {
+    @apply btn border border-brand-100 bg-gradient-to-b from-white to-cream-100 text-brand-800 shadow-e1 hover:-translate-y-px hover:border-brand-200 hover:shadow-e2 active:shadow-inset;
+  }
+  .btn-danger {
+    @apply btn border border-red-200 bg-red-50 text-red-700 hover:border-red-300 hover:bg-red-100;
+  }
+  .btn-ghost {
+    @apply btn text-brand-700 hover:bg-cream-200;
+  }
+  .btn-sm {
+    @apply rounded-lg px-2.5 py-1.5 text-xs;
+  }
+
+  /* Inputs read as gently recessed (concave) so they invite text entry. */
+  .input {
+    @apply w-full rounded-xl border border-cream-300 bg-cream-50 px-3.5 py-2 text-sm text-brand-900 shadow-inset transition-all duration-200 ease-premium placeholder:text-slate-400 hover:border-gold-300/70 focus:border-gold-400 focus:bg-white focus:outline-none focus:ring-4 focus:ring-gold-100;
+  }
+  .label {
+    @apply mb-1.5 block text-sm font-medium text-brand-800;
+  }
+
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset;
+  }
+
+  .th {
+    @apply px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-400;
+  }
+  .td {
+    @apply px-4 py-3.5 align-top text-sm text-slate-600;
+    font-variant-numeric: tabular-nums;
+  }
+  .section-title {
+    @apply font-serif text-lg font-semibold tracking-tight text-brand-900;
+  }
+
+  .glass {
+    @apply rounded-2xl border border-white/60 bg-cream-50/80 shadow-e2 backdrop-blur-xl backdrop-saturate-150;
+  }
+  .panel-navy {
+    @apply relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-brand-800 via-ink-900 to-ink-950 text-cream-50 shadow-pop;
+  }
+  /* Soft radial sheen + gold hairline give the navy panels a crafted, lit feel. */
+  .panel-navy::before {
+    content: "";
+    @apply pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-gold-400/50 to-transparent;
+  }
+  .panel-navy::after {
+    content: "";
+    @apply pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-gold-500/10 blur-3xl;
+  }
+  .hover-lift {
+    @apply transition-all duration-300 ease-premium hover:-translate-y-0.5 hover:shadow-lift;
+  }
+  /* Thin gold rule */
+  .rule-gold {
+    @apply h-px w-full bg-gradient-to-r from-transparent via-gold-300 to-transparent;
+  }
+  .eyebrow {
+    @apply text-[11px] font-semibold uppercase tracking-[0.18em] text-gold-600;
+  }
+}
+
+@layer utilities {
+  .animate-in {
+    @apply animate-fade-in;
+  }
+  .font-display {
+    font-family: var(--font-serif), Georgia, serif;
+  }
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+  .gradient-text {
+    @apply bg-gradient-to-r from-gold-400 via-gold-300 to-gold-500 bg-clip-text text-transparent;
+  }
+  .iris-text {
+    background-image: linear-gradient(120deg, #5eead4, #67c7f7, #a78bfa, #e7a9f5);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  /* Hairline of light along the top edge — premium card detailing. */
+  .hairline-top {
+    @apply relative;
+  }
+  .hairline-top::before {
+    content: "";
+    @apply pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/70 to-transparent;
+  }
+  .bg-grid {
+    background-image: radial-gradient(circle at 1px 1px, rgb(195 154 60 / 0.10) 1px, transparent 0);
+    background-size: 22px 22px;
+  }
+  .skeleton {
+    @apply relative overflow-hidden rounded-lg bg-cream-300/70;
+  }
+  .skeleton::after {
+    content: "";
+    @apply absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/60 to-transparent;
+  }
+  .stagger > * {
+    animation: fade-in 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .stagger > *:nth-child(1) { animation-delay: 0.04s; }
+  .stagger > *:nth-child(2) { animation-delay: 0.10s; }
+  .stagger > *:nth-child(3) { animation-delay: 0.16s; }
+  .stagger > *:nth-child(4) { animation-delay: 0.22s; }
+  .stagger > *:nth-child(5) { animation-delay: 0.28s; }
+  .stagger > *:nth-child(6) { animation-delay: 0.34s; }
+}
