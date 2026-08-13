@@ -1,0 +1,22 @@
+version: 1
+
+frontend:
+  phases:
+    preBuild:
+      commands:
+        - npm ci --cache .npm --prefer-offline
+
+    build:
+      commands:
+        - env | grep -e DATABASE_URL -e AUTH_SECRET -e APP_URL -e NOTIFY_DRIVER -e SMTP_HOST -e SMTP_PORT -e SMTP_USER -e SMTP_PASS -e SMTP_FROM >> .env.production
+        - npm run build
+
+  artifacts:
+    baseDirectory: .next
+    files:
+      - '**/*'
+
+  cache:
+    paths:
+      - node_modules/**/*
+      - .next/cache/**/*
