@@ -8,7 +8,32 @@ frontend:
 
     build:
       commands:
-        - env | grep -e DATABASE_URL -e AUTH_SECRET -e APP_URL -e NOTIFY_DRIVER -e SMTP_HOST -e SMTP_PORT -e SMTP_USER -e SMTP_PASS -e SMTP_FROM >> .env.production
+        - rm -f .env.production
+        - printf 'DATABASE_URL="%s"\n' "$DATABASE_URL" >> .env.production
+        - printf 'AUTH_SECRET="%s"\n' "$AUTH_SECRET" >> .env.production
+        - printf 'APP_URL="%s"\n' "$APP_URL" >> .env.production
+        - printf 'SESSION_TTL_HOURS="%s"\n' "$SESSION_TTL_HOURS" >> .env.production
+        - printf 'STORAGE_DRIVER="%s"\n' "$STORAGE_DRIVER" >> .env.production
+        - printf 'STORAGE_LOCAL_DIR="%s"\n' "$STORAGE_LOCAL_DIR" >> .env.production
+        - printf 'S3_ENDPOINT="%s"\n' "$S3_ENDPOINT" >> .env.production
+        - printf 'S3_REGION="%s"\n' "$S3_REGION" >> .env.production
+        - printf 'S3_BUCKET="%s"\n' "$S3_BUCKET" >> .env.production
+        - printf 'S3_ACCESS_KEY_ID="%s"\n' "$S3_ACCESS_KEY_ID" >> .env.production
+        - printf 'S3_SECRET_ACCESS_KEY="%s"\n' "$S3_SECRET_ACCESS_KEY" >> .env.production
+        - printf 'NOTIFY_DRIVER="%s"\n' "$NOTIFY_DRIVER" >> .env.production
+        - printf 'SMTP_HOST="%s"\n' "$SMTP_HOST" >> .env.production
+        - printf 'SMTP_PORT="%s"\n' "$SMTP_PORT" >> .env.production
+        - printf 'SMTP_USER="%s"\n' "$SMTP_USER" >> .env.production
+        - printf 'SMTP_PASS="%s"\n' "$SMTP_PASS" >> .env.production
+        - printf 'SMTP_FROM="%s"\n' "$SMTP_FROM" >> .env.production
+        - printf 'ZOOM_ACCOUNT_ID="%s"\n' "$ZOOM_ACCOUNT_ID" >> .env.production
+        - printf 'ZOOM_CLIENT_ID="%s"\n' "$ZOOM_CLIENT_ID" >> .env.production
+        - printf 'ZOOM_CLIENT_SECRET="%s"\n' "$ZOOM_CLIENT_SECRET" >> .env.production
+        - printf 'ZOOM_SDK_CLIENT_ID="%s"\n' "$ZOOM_SDK_CLIENT_ID" >> .env.production
+        - printf 'ZOOM_SDK_CLIENT_SECRET="%s"\n' "$ZOOM_SDK_CLIENT_SECRET" >> .env.production
+        - printf 'BOOTSTRAP_ADMIN_EMAIL="%s"\n' "$BOOTSTRAP_ADMIN_EMAIL" >> .env.production
+        - printf 'COMPANY_NAME="%s"\n' "$COMPANY_NAME" >> .env.production
+        - printf 'COMPANY_IS_LISTED="%s"\n' "$COMPANY_IS_LISTED" >> .env.production
         - npm run build
 
   artifacts:
