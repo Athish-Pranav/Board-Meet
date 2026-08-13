@@ -14,7 +14,7 @@ next-env.d.ts
 # env / secrets
 .env
 .env*.local
-
+.env.production
 # prisma
 /prisma/*.db
 /prisma/*.db-journal
